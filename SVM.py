@@ -46,6 +46,7 @@ class SVM:
                             + sum([self.beta[self.support_index_beta[jj], jj].dot(self.kernel.kernel(
                                 self.x_prime[self.support_index_beta[jj]], x, nx=ii, ny=jj)) for jj in
                                  range(self.dim)])
+        return ret_mat
 
     def predict(self, x):
         if not self._is_fitted:
