@@ -101,7 +101,7 @@ class Reader:
                     if atom_counter == 0:
                         atoms = []
                         geometry = []
-                        if (line == '\n') | (line == ''):
+                        if not line.strip():
                             continue
                         else:
                             atom_counter = int(line)
