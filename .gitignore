@@ -1,4 +1,6 @@
 *.pyc
 *.xyz
 .idea/
-
+Input_Files/*
+*.qcin*
+*.pid
