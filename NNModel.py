@@ -24,68 +24,10 @@ class NNModel(object):
             self.types = ['H', 'H', 'H', 'C', 'C', 'H', 'H', 'H']
             self.unique_types = ['C', 'H']
             offset_dict = {'C': -37.0895866384, 'H': -0.4665818496}
-            #self.sfs = SymmetryFunctionSet(self.unique_types, cutoff = 6.5)
-            #self.int_types = [self.sfs.type_dict[ti] for ti in self.types]
-
-            # Parameters from Artrith and Kolpak Nano Lett. 2014, 14, 2670
-#            etas = [0.0009, 0.01, 0.02, 0.035, 0.06, 0.1, 0.2]
-#            for t1 in self.sfs.atomtypes:
-#                for t2 in self.sfs.atomtypes:
-#                    for eta in etas:
-#                        self.sfs.add_TwoBodySymmetryFunction(t1, t2, 'BehlerG1',
-#                            [eta], cuttype='cos')
-#
-#            ang_etas = [0.0001, 0.003, 0.008]
-#            zetas = [1.0, 4.0]
-#            for ti in self.sfs.atomtypes:
-#                for (tj, tk) in combinations_with_replacement(
-#                    self.sfs.atomtypes, 2):
-#                    for etas in ang_etas:
-#                        for lamb in [-1.0, 1.0]:
-#                            for zeta in zetas:
-#                                self.sfs.add_ThreeBodySymmetryFunction(
-#                                    ti, tj, tk, "BehlerG3", [lamb, zeta, eta],
-#                                    cuttype = 'cos')
-
-            #self.pot = BPpotential(['C', 'H'],
-            #    [self.sfs.num_Gs[self.sfs.type_dict['C']],
-            #    self.sfs.num_Gs[self.sfs.type_dict['H']]],
-            #    layers = [[5, 5]]*2, build_forces = True,
-            #    offsets = [-37.0895866384, -0.4665818496],
-            #    precision = tf.float64)
         elif self.molecule == 'Ammonia':
             self.types = ['N', 'H', 'H', 'H']
             self.unique_types = ['N', 'H']
             offset_dict = {'N': -54.2562426504, 'H': -0.4665818496}
-            #self.sfs = SymmetryFunctionSet(self.unique_types, cutoff = 6.5)
-            #self.int_types = [self.sfs.type_dict[ti] for ti in self.types]
-
-            # Parameters from Artrith and Kolpak Nano Lett. 2014, 14, 2670
-#            etas = [0.0009, 0.01, 0.02, 0.035, 0.06, 0.1, 0.2]
-#            for t1 in self.sfs.atomtypes:
-#                for t2 in self.sfs.atomtypes:
-#                    for eta in etas:
-#                        self.sfs.add_TwoBodySymmetryFunction(t1, t2, 'BehlerG1',
-#                            [eta], cuttype='cos')
-#
-#            ang_etas = [0.0001, 0.003, 0.008]
-#            zetas = [1.0, 4.0]
-#            for ti in self.sfs.atomtypes:
-#                for (tj, tk) in combinations_with_replacement(
-#                    self.sfs.atomtypes, 2):
-#                    for etas in ang_etas:
-#                        for lamb in [-1.0, 1.0]:
-#                            for zeta in zetas:
-#                                self.sfs.add_ThreeBodySymmetryFunction(
-#                                    ti, tj, tk, "BehlerG3", [lamb, zeta, eta],
-#                                    cuttype = 'cos')
-
-            #self.pot = BPpotential(['N', 'H'],
-            #    [self.sfs.num_Gs[self.sfs.type_dict['N']],
-            #    self.sfs.num_Gs[self.sfs.type_dict['H']]],
-            #    layers = [[5, 5]]*2, build_forces = True,
-            #    offsets = [-54.2562426504, -0.4665818496],
-            #    precision = tf.float64)
 
         self.sfs = SymmetryFunctionSet(self.unique_types, cutoff = 6.5)
         self.int_types = [self.sfs.type_dict[ti] for ti in self.types]
@@ -132,7 +74,8 @@ class NNModel(object):
         :return:
         """
 
-        print('fit called with %d geometries. E_max = %f, E_min = %f'%(len(x_train), np.max(y_train), np.min(y_train)))
+        print('fit called with %d geometries. E_max = %f, E_min = %f'%(
+            len(x_train), np.max(y_train), np.min(y_train)))
         # NN Model does not support different geometries for energies and forces
         np.testing.assert_array_equal(x_train, x_prime_train)
 
@@ -144,79 +87,52 @@ class NNModel(object):
         for i in range(len(xyzs)):
             Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
             dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
-
-        if self.molecule == 'Ethane':
-            [C_atoms, H_atoms], [C_indices, H_indices], [C_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            if self.normalize_input:
-                self.Gs_mean['C'] = np.mean(C_atoms, axis = 0)
-                self.Gs_mean['H'] = np.mean(H_atoms, axis = 0)
+        ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
+            len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
+        if self.normalize_input:
+            for i, t in enumerate(self.unique_types):
+                self.Gs_mean[t] = np.mean(ANN_inputs[i], axis = 0)
                 # Small offset for numerical stability
-                self.Gs_std['C'] = np.std(C_atoms, axis = 0) + 1E-6
-                self.Gs_std['H'] = np.std(H_atoms, axis = 0) + 1E-6
-            train_dict = {
-                self.pot.ANNs['C'].input: (C_atoms-self.Gs_mean['C'])/self.Gs_std['C'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['C']: C_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['C'].derivatives_input: np.einsum('ijkl,j->ijkl', C_derivs, 1.0/self.Gs_std['C']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: y_train,
-                self.pot.target_forces: -y_prime_train.reshape((-1, len(self.types), 3)),
-                self.pot.rmse_weights: np.ones(len(Gs))}
-
-        elif self.molecule == 'Ammonia':
-            [N_atoms, H_atoms], [N_indices, H_indices], [N_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            if self.normalize_input:
-                self.Gs_mean['N'] = np.mean(N_atoms, axis = 0)
-                self.Gs_mean['H'] = np.mean(H_atoms, axis = 0)
-                # Small offset for numerical stability
-                self.Gs_std['N'] = np.std(N_atoms, axis = 0) + 1E-6
-                self.Gs_std['H'] = np.std(H_atoms, axis = 0) + 1E-6
-            train_dict = {
-                self.pot.ANNs['N'].input: (N_atoms-self.Gs_mean['N'])/self.Gs_std['N'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['N']: N_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['N'].derivatives_input: np.einsum('ijkl,j->ijkl', N_derivs, 1.0/self.Gs_std['N']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: y_train,
-                self.pot.target_forces: -y_prime_train.reshape((-1, len(self.types), 3)),
-                self.pot.rmse_weights: np.ones(len(Gs))}
+                self.Gs_std[t] = np.std(ANN_inputs[i], axis = 0) + 1E-6
+        train_dict = {self.pot.target: y_train,
+            self.pot.target_forces: -y_prime_train.reshape(
+                (-1, len(self.types), 3)),
+            self.pot.rmse_weights: np.ones(len(Gs))}
+        for i, t in enumerate(self.unique_types):
+            train_dict[self.pot.ANNs[t].input] = (
+                ANN_inputs[i]-self.Gs_mean[t])/self.Gs_std[t]
+            train_dict[self.pot.atom_indices[t]] = indices[i]
+            train_dict[self.pot.ANNs[t].derivatives_input] = np.einsum(
+                'ijkl,j->ijkl', ANN_derivs[i], 1.0/self.Gs_std[t])
 
         if self.reset_fit:
             self.session.run(tf.initializers.variables(self.pot.variables))
         regularizer = tf.contrib.layers.l2_regularizer(scale=1.0)
         reg_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-        reg_term = tf.contrib.layers.apply_regularization(regularizer, reg_variables)
+        reg_term = tf.contrib.layers.apply_regularization(
+            regularizer, reg_variables)
         optimizer = tf.contrib.opt.ScipyOptimizerInterface(
             self.C1*self.pot.rmse + self.C2*self.pot.rmse_forces + reg_term,
             method='L-BFGS-B')
         optimizer.minimize(self.session, train_dict)
-        e_rmse, f_rmse = self.session.run([self.pot.rmse, self.pot.rmse_forces], train_dict)
-        print('fit finished with energy rmse %f and gradient rmse %f'%(e_rmse, f_rmse))
+        e_rmse, f_rmse = self.session.run(
+            [self.pot.rmse, self.pot.rmse_forces], train_dict)
+        print('fit finished with energy rmse '
+            '%f and gradient rmse %f'%(e_rmse, f_rmse))
 
     def predict(self, x):
         xyzs = x.reshape((-1,len(self.types),3))
         Gs = []
         for i in range(len(xyzs)):
             Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
+        ANN_inputs, indices, = calculate_bp_indices(
+            len(self.unique_types), Gs, [self.int_types]*len(Gs))
+        eval_dict = {self.pot.target: np.zeros(len(Gs))}
+        for i, t in enumerate(self.unique_types):
+            eval_dict[self.pot.ANNs[t].input] = (
+                ANN_inputs[i]-self.Gs_mean[t])/self.Gs_std[t]
+            eval_dict[self.pot.atom_indices[t]] = indices[i]
 
-        if self.molecule == 'Ethane':
-            [C_atoms, H_atoms], [C_indices, H_indices] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs))
-            eval_dict = {
-                self.pot.ANNs['C'].input: (C_atoms-self.Gs_mean['C'])/self.Gs_std['C'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['C']: C_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.target: np.zeros(len(Gs))}
-        elif self.molecule == 'Ammonia':
-            [N_atoms, H_atoms], [N_indices, H_indices] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs))
-            eval_dict = {
-                self.pot.ANNs['N'].input: (N_atoms-self.Gs_mean['N'])/self.Gs_std['N'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['N']: N_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.target: np.zeros(len(Gs))}
         return self.session.run(self.pot.E_predict, eval_dict)
 
     def predict_derivative(self, x):
@@ -226,30 +142,18 @@ class NNModel(object):
         for i in range(len(xyzs)):
             Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
             dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
-        if self.molecule == 'Ethane':
-            [C_atoms, H_atoms], [C_indices, H_indices], [C_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            eval_dict = {
-                self.pot.ANNs['C'].input: (C_atoms-self.Gs_mean['C'])/self.Gs_std['C'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['C']: C_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['C'].derivatives_input: np.einsum('ijkl,j->ijkl', C_derivs, 1.0/self.Gs_std['C']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: np.zeros(len(Gs)),
-                self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
-        elif self.molecule == 'Ammonia':
-            [N_atoms, H_atoms], [N_indices, H_indices], [N_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            eval_dict = {
-                self.pot.ANNs['N'].input: (N_atoms-self.Gs_mean['N'])/self.Gs_std['N'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['N']: N_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['N'].derivatives_input: np.einsum('ijkl,j->ijkl', N_derivs, 1.0/self.Gs_std['N']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: np.zeros(len(Gs)),
-                self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
+        ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
+            len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
+        eval_dict = {self.pot.target: np.zeros(len(Gs)),
+            self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
+        for i, t in enumerate(self.unique_types):
+            eval_dict[self.pot.ANNs[t].input] = (
+                ANN_inputs[i]-self.Gs_mean[t])/self.Gs_std[t]
+            eval_dict[self.pot.atom_indices[t]] = indices[i]
+            eval_dict[self.pot.ANNs[t].derivatives_input] = np.einsum(
+                'ijkl,j->ijkl', ANN_derivs[i], 1.0/self.Gs_std[t])
+
         # Return gradient (negative force)
-        print(E)
         return -self.session.run(self.pot.F_predict, eval_dict).reshape(-1)
 
 
@@ -265,29 +169,18 @@ class NNModel(object):
         for i in range(len(xyzs)):
             Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
             dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
-        if self.molecule == 'Ethane':
 
-            [C_atoms, H_atoms], [C_indices, H_indices], [C_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            eval_dict = {
-                self.pot.ANNs['C'].input: (C_atoms-self.Gs_mean['C'])/self.Gs_std['C'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['C']: C_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['C'].derivatives_input: np.einsum('ijkl,j->ijkl', C_derivs, 1.0/self.Gs_std['C']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: np.zeros(len(Gs)),
-                self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
-        if self.molecule == 'Ammonia':
-            [N_atoms, H_atoms], [N_indices, H_indices], [N_derivs, H_derivs] = calculate_bp_indices(2, Gs, [self.int_types]*len(Gs), dGs = dGs)
-            eval_dict = {
-                self.pot.ANNs['N'].input: (N_atoms-self.Gs_mean['N'])/self.Gs_std['N'],
-                self.pot.ANNs['H'].input: (H_atoms-self.Gs_mean['H'])/self.Gs_std['H'],
-                self.pot.atom_indices['N']: N_indices,
-                self.pot.atom_indices['H']: H_indices,
-                self.pot.ANNs['N'].derivatives_input: np.einsum('ijkl,j->ijkl', N_derivs, 1.0/self.Gs_std['N']),
-                self.pot.ANNs['H'].derivatives_input: np.einsum('ijkl,j->ijkl', H_derivs, 1.0/self.Gs_std['H']),
-                self.pot.target: np.zeros(len(Gs)),
-                self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
+        ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
+            len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
+        eval_dict = {self.pot.target: np.zeros(len(Gs)),
+            self.pot.target_forces: np.zeros((len(Gs), len(self.types), 3))}
+        for i, t in enumerate(self.unique_types):
+            eval_dict[self.pot.ANNs[t].input] = (
+                ANN_inputs[i]-self.Gs_mean[t])/self.Gs_std[t]
+            eval_dict[self.pot.atom_indices[t]] = indices[i]
+            eval_dict[self.pot.ANNs[t].derivatives_input] = np.einsum(
+                'ijkl,j->ijkl', ANN_derivs[i], 1.0/self.Gs_std[t])
+
         E = self.session.run(self.pot.E_predict, eval_dict)
         F = self.session.run(self.pot.F_predict, eval_dict)
         # Return energey and gradient (negative force)
