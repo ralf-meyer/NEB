@@ -85,8 +85,9 @@ class NNModel(object):
         dGs = []
 
         for i in range(len(xyzs)):
-            Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
-            dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
+            Gi, dGi = self.sfs.eval_with_derivatives(self.types, xyzs[i,:,:])
+            Gs.append(Gi)
+            dGs.append(dGi)
         ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
             len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
         if self.normalize_input:
@@ -140,8 +141,9 @@ class NNModel(object):
         Gs = []
         dGs = []
         for i in range(len(xyzs)):
-            Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
-            dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
+            Gi, dGi = self.sfs.eval_with_derivatives(self.types, xyzs[i,:,:])
+            Gs.append(Gi)
+            dGs.append(dGi)
         ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
             len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
         eval_dict = {self.pot.target: np.zeros(len(Gs)),
@@ -167,9 +169,9 @@ class NNModel(object):
         Gs = []
         dGs = []
         for i in range(len(xyzs)):
-            Gs.append(self.sfs.eval(self.types, xyzs[i,:,:]))
-            dGs.append(self.sfs.eval_derivatives(self.types, xyzs[i,:,:]))
-
+            Gi, dGi = self.sfs.eval_with_derivatives(self.types, xyzs[i,:,:])
+            Gs.append(Gi)
+            dGs.append(dGi)
         ANN_inputs, indices, ANN_derivs = calculate_bp_indices(
             len(self.unique_types), Gs, [self.int_types]*len(Gs), dGs = dGs)
         eval_dict = {self.pot.target: np.zeros(len(Gs)),
