@@ -185,7 +185,7 @@ class NNModel(object):
 
         E = self.session.run(self.pot.E_predict, eval_dict)
         F = self.session.run(self.pot.F_predict, eval_dict)
-        # Return energey and gradient (negative force)
+        # Return energy and gradient (negative force)
         return E, -F.reshape(-1), None
 
     def close(self):
